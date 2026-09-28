@@ -12,6 +12,7 @@ import {
   Send,
   CheckCircle2,
   Calendar,
+  BarChart3,
 } from 'lucide-react';
 
 interface Props {
@@ -53,6 +54,13 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate('reports')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Performance Reports
+          </button>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
             <Calendar className="w-3.5 h-3.5" />
             Today: 24 Feb 2026
@@ -223,7 +231,12 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
 
             <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
               <span>Low: R5,000 (Sep)</span>
-              <span>Peak: R10,000 (Jan)</span>
+              <button
+                onClick={() => onNavigate('reports')}
+                className="text-emerald-700 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1"
+              >
+                View 12-Month Performance Reports <ArrowUpRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </div>

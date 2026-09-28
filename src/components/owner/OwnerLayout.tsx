@@ -54,7 +54,7 @@ export const OwnerLayout: React.FC = () => {
     { id: 'rooms', label: 'Rooms', icon: Home },
     { id: 'agreements', label: 'Agreements', icon: FileText },
     { id: 'payments', label: 'Payments', icon: CreditCard, badge: pendingCount > 0 ? pendingCount : null },
-    { id: 'reports', label: 'Reports', icon: BarChart3 },
+    { id: 'reports', label: 'Performance Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'help', label: 'Help', icon: HelpCircle },
   ];
