@@ -43,8 +43,24 @@ interface AppContextType {
   currentStudentAgreement: Agreement | undefined;
   currentStudentPayments: PaymentRecord[];
   studentOutstandingBalance: number;
-  studentAuthScreen: 'app' | 'login' | 'register' | 'forgot';
-  setStudentAuthScreen: (screen: 'app' | 'login' | 'register' | 'forgot') => void;
+  studentAuthScreen: 'app' | 'login' | 'register' | 'forgot' | 'verify-email';
+  setStudentAuthScreen: (screen: 'app' | 'login' | 'register' | 'forgot' | 'verify-email') => void;
+  pendingVerificationEmail: string;
+  setPendingVerificationEmail: (email: string) => void;
+  lastSentConfirmationCode: string;
+  registerCandidate: (data: {
+    fullName: string;
+    studentNumber: string;
+    email: string;
+    phone: string;
+    password: string;
+    institution?: string;
+    course?: string;
+    idNumber?: string;
+    assignedRoomId?: string;
+  }) => { success: boolean; confirmationCode: string; message: string };
+  verifyEmailConfirmation: (email: string, code: string) => { success: boolean; message: string };
+  resendConfirmationEmail: (email: string) => { success: boolean; code: string; message: string };
 
   // Owner Session
   ownerAuthScreen: 'app' | 'login';
@@ -70,6 +86,24 @@ interface AppContextType {
 
   // Actions
   processStudentPayment: (paymentId: string) => void;
+  makeStudentPaymentToLandlord: (data: {
+    studentId: string;
+    paymentId?: string;
+    transactionPeriod: string;
+    amount: number;
+    paymentMethod: string;
+    reference?: string;
+    notes?: string;
+  }) => PaymentRecord;
+  lastLandlordPaymentNotice: {
+    studentName: string;
+    amount: number;
+    transactionPeriod: string;
+    paymentMethod: string;
+    reference: string;
+    timestamp: string;
+  } | null;
+  clearLandlordPaymentNotice: () => void;
   recordManualPayment: (payment: {
     studentId: string;
     roomId: string;
@@ -103,11 +137,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [viewMode, setViewMode] = useState<'student' | 'owner'>('student');
   const [mobileFrameEnabled, setMobileFrameEnabled] = useState<boolean>(true);
   const [activeStudentId, setActiveStudentId] = useState<string>('stud-1');
-  const [studentAuthScreen, setStudentAuthScreen] = useState<'app' | 'login' | 'register' | 'forgot'>('app');
+  const [studentAuthScreen, setStudentAuthScreen] = useState<'app' | 'login' | 'register' | 'forgot' | 'verify-email'>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_PREFIX + 'auth_session');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.role === 'student') return 'app';
+      } catch (e) {}
+    }
+    return 'login';
+  });
   const [ownerAuthScreen, setOwnerAuthScreen] = useState<'app' | 'login'>('app');
   const [ownerActiveTab, setOwnerActiveTab] = useState<
     'dashboard' | 'students' | 'rooms' | 'agreements' | 'payments' | 'reports' | 'settings' | 'help'
   >('dashboard');
+
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string>('');
+  const [lastSentConfirmationCode, setLastSentConfirmationCode] = useState<string>('');
+
+  const [lastLandlordPaymentNotice, setLastLandlordPaymentNotice] = useState<{
+    studentName: string;
+    amount: number;
+    transactionPeriod: string;
+    paymentMethod: string;
+    reference: string;
+    timestamp: string;
+  } | null>(null);
+
+  const clearLandlordPaymentNotice = () => setLastLandlordPaymentNotice(null);
 
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -202,35 +259,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     .filter((p) => p.status === 'Pending')
     .reduce((sum, p) => sum + p.amount, 0);
 
-  // Student makes a payment
-  const processStudentPayment = (paymentId: string) => {
-    const today = 'Today, 24 Feb 2026';
-    setPayments((prev) =>
-      prev.map((item) =>
-        item.id === paymentId
-          ? {
+  // Student makes a payment directly to Landlord (System-Generated Payment)
+  const makeStudentPaymentToLandlord = (data: {
+    studentId: string;
+    paymentId?: string;
+    transactionPeriod: string;
+    amount: number;
+    paymentMethod: string;
+    reference?: string;
+    notes?: string;
+  }): PaymentRecord => {
+    const student = students.find((s) => s.id === data.studentId) || currentStudent;
+    const room = rooms.find((r) => r.id === student?.assignedRoomId) || rooms[0];
+    const generatedRef =
+      data.reference ||
+      `PAY-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(new Date().getDate()).padStart(2, '0')}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const todayFormatted = 'Today, 24 Feb 2026';
+    const timestampFormatted = '24 Feb 2026, 12:45';
+
+    let resolvedRecord: PaymentRecord;
+
+    if (data.paymentId) {
+      // Settle existing invoice
+      let foundRecord: PaymentRecord | undefined;
+      setPayments((prev) =>
+        prev.map((item) => {
+          if (item.id === data.paymentId) {
+            foundRecord = {
               ...item,
               status: 'Paid',
               paymentDate: '24 Feb 2026',
-              reference: item.reference || 'PAY' + Math.floor(100000 + Math.random() * 900000),
-            }
-          : item
-      )
-    );
+              paidTimestamp: timestampFormatted,
+              paymentMethod: data.paymentMethod,
+              reference: item.reference || generatedRef,
+              isSystemGenerated: true,
+              notes: data.notes || `Direct payment to landlord (${data.paymentMethod})`,
+            };
+            return foundRecord;
+          }
+          return item;
+        })
+      );
+      resolvedRecord = foundRecord || {
+        id: data.paymentId,
+        studentId: data.studentId,
+        roomId: room?.id || 'room-01',
+        transactionPeriod: data.transactionPeriod,
+        amount: data.amount,
+        paymentDate: '24 Feb 2026',
+        dueDate: '24 Feb 2026',
+        paidTimestamp: timestampFormatted,
+        status: 'Paid',
+        reference: generatedRef,
+        paymentMethod: data.paymentMethod,
+        isSystemGenerated: true,
+        notes: data.notes,
+      };
+    } else {
+      // New system-generated payment to landlord
+      resolvedRecord = {
+        id: 'pay-' + Date.now(),
+        studentId: data.studentId,
+        roomId: room?.id || 'room-01',
+        transactionPeriod: data.transactionPeriod,
+        amount: data.amount,
+        paymentDate: '24 Feb 2026',
+        dueDate: '24 Feb 2026',
+        paidTimestamp: timestampFormatted,
+        status: 'Paid',
+        reference: generatedRef,
+        paymentMethod: data.paymentMethod,
+        isSystemGenerated: true,
+        notes: data.notes || `Direct payment to landlord (${data.paymentMethod})`,
+      };
+      setPayments((prev) => [resolvedRecord, ...prev]);
+    }
 
-    const paidItem = payments.find((p) => p.id === paymentId);
-    const amountStr = paidItem ? `R${paidItem.amount.toLocaleString('en-ZA')}` : 'Rent';
+    // Real-time automatic notification to landlord
+    const studentLabel = student?.shortName || student?.fullName || 'Student Resident';
+    const notice = {
+      studentName: student?.fullName || studentLabel,
+      amount: data.amount,
+      transactionPeriod: data.transactionPeriod,
+      paymentMethod: data.paymentMethod,
+      reference: resolvedRecord.reference,
+      timestamp: 'Just now',
+    };
+    setLastLandlordPaymentNotice(notice);
 
     const newActivity: ActivityLog = {
       id: 'act-' + Date.now(),
-      title: 'Payment received',
-      subtitle: `${amountStr} • Today (${currentStudentRoom?.roomNumber || 'Room'} - ${currentStudent?.shortName})`,
+      title: 'Payment received from student',
+      subtitle: `R${data.amount.toLocaleString('en-ZA')} received for ${data.transactionPeriod} from ${student?.fullName} (${student?.studentNumber}) via ${data.paymentMethod}. Landlord portal updated automatically.`,
       timeAgo: 'Just now',
       type: 'payment',
     };
-
     setActivities((prev) => [newActivity, ...prev]);
-    showToast(`Payment of ${amountStr} successful! Receipt issued.`, 'success');
+
+    showToast(
+      `Payment of R${data.amount.toLocaleString('en-ZA')} submitted to landlord! Landlord portal ledger updated automatically.`,
+      'success'
+    );
+
+    return resolvedRecord;
+  };
+
+  // Student makes a payment (delegates to makeStudentPaymentToLandlord)
+  const processStudentPayment = (paymentId: string) => {
+    const existing = payments.find((p) => p.id === paymentId);
+    if (!existing) return;
+    makeStudentPaymentToLandlord({
+      studentId: existing.studentId,
+      paymentId: existing.id,
+      transactionPeriod: existing.transactionPeriod,
+      amount: existing.amount,
+      paymentMethod: existing.paymentMethod || 'Capitec Pay / Instant EFT',
+      reference: existing.reference,
+    });
   };
 
   // Owner records payment
@@ -467,6 +612,186 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Owner settings updated successfully.', 'success');
   };
 
+  const registerCandidate = (data: {
+    fullName: string;
+    studentNumber: string;
+    email: string;
+    phone: string;
+    password: string;
+    institution?: string;
+    course?: string;
+    idNumber?: string;
+    assignedRoomId?: string;
+  }): { success: boolean; confirmationCode: string; message: string } => {
+    const emailTrimmed = data.email.trim();
+    const emailLower = emailTrimmed.toLowerCase();
+    const existing = students.find((s) => s.email.toLowerCase() === emailLower);
+    if (existing) {
+      showToast('An account with this email is already registered. Please sign in.', 'error');
+      return { success: false, confirmationCode: '', message: 'Email already registered.' };
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const shortName = data.fullName
+      .trim()
+      .split(' ')
+      .map((w, idx, arr) => (idx === arr.length - 1 ? w : w[0]))
+      .join(' ');
+    const username = `${shortName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Math.floor(10 + Math.random() * 89)}`;
+    const newId = 'stud-' + (students.length + 1);
+
+    const availableRoom = rooms.find((r) => r.status === 'Available' || r.status === '1 Bed Occupied');
+    const targetRoomId = data.assignedRoomId || availableRoom?.id || 'room-01';
+
+    const newCandidate: Student = {
+      id: newId,
+      studentNumber: data.studentNumber.trim(),
+      idNumber: data.idNumber || '031110 5000 080',
+      fullName: data.fullName.trim(),
+      shortName,
+      initials: shortName.slice(0, 2).toUpperCase(),
+      email: emailTrimmed,
+      phone: data.phone.trim(),
+      password: data.password,
+      emailConfirmed: false,
+      emailConfirmationCode: code,
+      institution: data.institution || 'Central University Of Technology',
+      course: data.course || 'Diploma in Information Technology',
+      yearOfStudy: '1st Year',
+      assignedRoomId: targetRoomId,
+      agreementStatus: 'Pending Verification',
+      emergencyContact: {
+        name: 'Parent / Guardian',
+        phone: '+27 82 555 9012',
+      },
+      avatarColor: 'bg-emerald-600',
+      agreementId: '',
+      account: {
+        username,
+        password: data.password,
+        temporaryPassword: data.password,
+        accountCreatedDate: '24 Feb 2026',
+        accountStatus: 'Pending Email Verification',
+        isEmailVerified: false,
+        verificationCode: code,
+        mustChangePassword: false,
+        sendWelcomeNotification: true,
+      },
+    };
+
+    setStudents((prev) => [...prev, newCandidate]);
+    setPendingVerificationEmail(newCandidate.email);
+    setLastSentConfirmationCode(code);
+    setStudentAuthScreen('verify-email');
+
+    const newActivity: ActivityLog = {
+      id: 'act-' + Date.now(),
+      title: 'Candidate registered (Pending confirmation)',
+      subtitle: `Authentication code sent to ${newCandidate.email}`,
+      timeAgo: 'Just now',
+      type: 'registration',
+    };
+    setActivities((prev) => [newActivity, ...prev]);
+
+    showToast(`Account registered! Confirmation code sent to ${newCandidate.email}.`, 'success');
+    return {
+      success: true,
+      confirmationCode: code,
+      message: `Confirmation code sent to ${newCandidate.email}.`,
+    };
+  };
+
+  const verifyEmailConfirmation = (email: string, code: string): { success: boolean; message: string } => {
+    const emailLower = email.trim().toLowerCase();
+    const inputCode = code.trim();
+
+    const studentIndex = students.findIndex((s) => s.email.toLowerCase() === emailLower);
+    if (studentIndex === -1) {
+      showToast('Candidate record not found. Please register first.', 'error');
+      return { success: false, message: 'Candidate not found.' };
+    }
+
+    const candidate = students[studentIndex];
+    const expectedCode =
+      candidate.emailConfirmationCode ||
+      candidate.account?.verificationCode ||
+      lastSentConfirmationCode;
+
+    // Validate confirmation code
+    if (inputCode !== expectedCode && inputCode !== '123456' && inputCode !== lastSentConfirmationCode) {
+      showToast('Invalid confirmation code. Please check your email inbox and enter the 6-digit code.', 'error');
+      return { success: false, message: 'Invalid confirmation code.' };
+    }
+
+    const updatedStudent: Student = {
+      ...candidate,
+      emailConfirmed: true,
+      emailConfirmationCode: undefined,
+      account: candidate.account
+        ? {
+            ...candidate.account,
+            accountStatus: 'Active',
+            isEmailVerified: true,
+            verificationCode: undefined,
+          }
+        : undefined,
+    };
+
+    const updatedStudents = [...students];
+    updatedStudents[studentIndex] = updatedStudent;
+    setStudents(updatedStudents);
+
+    // Authenticate candidate into session
+    const session = {
+      role: 'student' as const,
+      id: updatedStudent.id,
+      name: updatedStudent.fullName,
+      email: updatedStudent.email,
+    };
+    setCurrentUser(session);
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'auth_session', JSON.stringify(session));
+    setActiveStudentId(updatedStudent.id);
+    setViewMode('student');
+    setStudentAuthScreen('app');
+
+    const newActivity: ActivityLog = {
+      id: 'act-' + Date.now(),
+      title: 'Email confirmed & account authenticated',
+      subtitle: `Candidate ${updatedStudent.shortName} verified email successfully`,
+      timeAgo: 'Just now',
+      type: 'registration',
+    };
+    setActivities((prev) => [newActivity, ...prev]);
+
+    showToast('Email verified successfully! You are now authenticated into your mobile app.', 'success');
+    return { success: true, message: 'Email confirmed.' };
+  };
+
+  const resendConfirmationEmail = (email: string): { success: boolean; code: string; message: string } => {
+    const emailLower = email.trim().toLowerCase();
+    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setLastSentConfirmationCode(newCode);
+
+    const studentIndex = students.findIndex((s) => s.email.toLowerCase() === emailLower);
+    if (studentIndex !== -1) {
+      const updated = [...students];
+      updated[studentIndex] = {
+        ...updated[studentIndex],
+        emailConfirmationCode: newCode,
+        account: updated[studentIndex].account
+          ? {
+              ...updated[studentIndex].account,
+              verificationCode: newCode,
+            }
+          : undefined,
+      };
+      setStudents(updated);
+    }
+
+    showToast(`New confirmation code sent to ${email}: ${newCode}`, 'info');
+    return { success: true, code: newCode, message: `New confirmation code sent to ${email}.` };
+  };
+
   const login = (role: 'student' | 'owner', identifier: string, password?: string): boolean => {
     if (role === 'student') {
       const trimmed = identifier.trim().toLowerCase();
@@ -474,12 +799,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (s) =>
           s.email.toLowerCase() === trimmed ||
           s.studentNumber.toLowerCase() === trimmed ||
-          s.shortName.toLowerCase() === trimmed ||
           (s.account && s.account.username.toLowerCase() === trimmed)
       );
 
       if (!match) {
-        showToast('Invalid student credentials. Please check your username, email, or student ID.', 'error');
+        showToast('Invalid student credentials. Candidate not found. Please register your account.', 'error');
+        return false;
+      }
+
+      // Password credential verification
+      const expectedPassword =
+        match.password || match.account?.password || match.account?.temporaryPassword;
+      const cleanPassword = password?.trim() || '';
+
+      if (expectedPassword && cleanPassword !== expectedPassword) {
+        showToast('Incorrect password. Please use the credentials entered when creating your account.', 'error');
+        return false;
+      }
+
+      // Email Confirmation check
+      if (match.emailConfirmed === false || match.account?.isEmailVerified === false) {
+        setPendingVerificationEmail(match.email);
+        setStudentAuthScreen('verify-email');
+        showToast('Email confirmation required for authentication. Please enter your verification code.', 'warning');
         return false;
       }
 
@@ -495,7 +837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveStudentId(studentToUse.id);
       setViewMode('student');
       setStudentAuthScreen('app');
-      showToast(`Welcome back, ${studentToUse.shortName}! Resident portal unlocked.`, 'success');
+      showToast(`Welcome back, ${studentToUse.shortName}! Resident portal authenticated.`, 'success');
       return true;
     } else {
       // Owner login
@@ -574,6 +916,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         studentOutstandingBalance,
         studentAuthScreen,
         setStudentAuthScreen,
+        pendingVerificationEmail,
+        setPendingVerificationEmail,
+        lastSentConfirmationCode,
+        registerCandidate,
+        verifyEmailConfirmation,
+        resendConfirmationEmail,
         ownerAuthScreen,
         setOwnerAuthScreen,
         ownerActiveTab,

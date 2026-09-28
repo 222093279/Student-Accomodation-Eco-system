@@ -24,18 +24,15 @@ export const MobileShell: React.FC = () => {
     studentAuthScreen,
     mobileFrameEnabled,
     setMobileFrameEnabled,
-    students,
-    setActiveStudentId,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'rooms' | 'payments' | 'agreements' | 'profile'>('rooms');
-  const [showResidentMenu, setShowResidentMenu] = useState(false);
 
   // Extract greeting name (e.g. Mohlomi, Matlhoane, Moloi)
   const getGreetingName = () => {
     if (!currentStudent) return 'Student';
     const parts = currentStudent.fullName.split(' ');
-    return parts[parts.length - 1]; // Mohlomi, Matlhoane, Moloi
+    return parts[parts.length - 1];
   };
 
   const renderContent = () => {
@@ -78,22 +75,27 @@ export const MobileShell: React.FC = () => {
             {/* User Greeting */}
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => setShowResidentMenu(!showResidentMenu)}
-                className={`w-9 h-9 rounded-xl ${currentStudent.avatarColor} text-white flex items-center justify-center font-bold text-xs shadow-xs hover:ring-2 hover:ring-emerald-400 transition`}
+                onClick={() => setActiveTab('profile')}
+                className={`w-9 h-9 rounded-xl ${currentStudent?.avatarColor || 'bg-emerald-600'} text-white flex items-center justify-center font-bold text-xs shadow-xs hover:ring-2 hover:ring-emerald-400 transition`}
+                title="View Profile"
               >
-                {currentStudent.initials}
+                {currentStudent?.initials || 'ST'}
               </button>
               <div>
                 <button
-                  onClick={() => setShowResidentMenu(!showResidentMenu)}
-                  className="flex items-center gap-1 text-left font-bold text-sm text-slate-900 dark:text-white leading-tight hover:text-emerald-700"
+                  onClick={() => setActiveTab('profile')}
+                  className="text-left font-bold text-sm text-slate-900 dark:text-white leading-tight hover:text-emerald-700 dark:hover:text-emerald-400 transition"
                 >
-                  <span>Hello, {getGreetingName()} 👋</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                  Hello, {getGreetingName()} 👋
                 </button>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                  Student Resident
-                </span>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                  <span>Student Resident</span>
+                  {currentStudent?.emailConfirmed && (
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-semibold">
+                      Verified
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -103,42 +105,16 @@ export const MobileShell: React.FC = () => {
                 {activeTab}
               </span>
               <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                {currentStudent.assignedRoomId === 'room-01'
+                {currentStudent?.assignedRoomId === 'room-01'
                   ? 'Room 01'
-                  : currentStudent.assignedRoomId === 'room-02'
+                  : currentStudent?.assignedRoomId === 'room-02'
                   ? 'Room 02'
-                  : 'Room 03'}
+                  : currentStudent?.assignedRoomId === 'room-03'
+                  ? 'Room 03'
+                  : 'Room 04'}
               </span>
             </div>
           </div>
-
-          {/* Resident switcher dropdown */}
-          {showResidentMenu && (
-            <div className="mt-2.5 p-2 bg-slate-50 dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1 text-xs animate-in fade-in slide-in-from-top-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 px-2 block">
-                Select Resident Profile
-              </span>
-              {students.map((stud) => (
-                <button
-                  key={stud.id}
-                  onClick={() => {
-                    setActiveStudentId(stud.id);
-                    setShowResidentMenu(false);
-                  }}
-                  className={`w-full flex items-center justify-between p-1.5 rounded-lg text-left transition ${
-                    currentStudent.id === stud.id
-                      ? 'bg-emerald-700 text-white font-semibold'
-                      : 'hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                  }`}
-                >
-                  <span className="truncate">{stud.fullName}</span>
-                  <span className="text-[10px] opacity-75 shrink-0">
-                    {stud.assignedRoomId === 'room-01' ? 'Rm 01' : stud.assignedRoomId === 'room-02' ? 'Rm 02' : 'Rm 03'}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

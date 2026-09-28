@@ -17,14 +17,27 @@ import {
   Sparkles,
   HelpCircle,
   X,
+  Inbox,
+  Send,
+  Shield,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, students, ownerProfile, addNewStudent, showToast } = useApp();
+  const {
+    login,
+    students,
+    ownerProfile,
+    registerCandidate,
+    verifyEmailConfirmation,
+    resendConfirmationEmail,
+    lastSentConfirmationCode,
+    pendingVerificationEmail,
+    showToast,
+  } = useApp();
 
   const [role, setRole] = useState<'student' | 'owner'>('student');
-  const [identifier, setIdentifier] = useState('mramadulwane@gmail.com');
-  const [password, setPassword] = useState('••••••••••••');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -34,6 +47,12 @@ export const LoginPage: React.FC = () => {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSuccess, setForgotSuccess] = useState(false);
+
+  // Email confirmation modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [confirmCodeInput, setConfirmCodeInput] = useState('');
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [regForm, setRegForm] = useState({
@@ -50,8 +69,8 @@ export const LoginPage: React.FC = () => {
     setRole(newRole);
     setErrorMessage('');
     if (newRole === 'student') {
-      setIdentifier('mramadulwane@gmail.com');
-      setPassword('••••••••••••');
+      setIdentifier('');
+      setPassword('');
     } else {
       setIdentifier(ownerProfile.email || 'makhelepulane1@gmail.com');
       setPassword('••••••••••••');
@@ -63,7 +82,11 @@ export const LoginPage: React.FC = () => {
     setErrorMessage('');
 
     if (!identifier.trim()) {
-      setErrorMessage(role === 'student' ? 'Please enter your student ID or email.' : 'Please enter your owner email.');
+      setErrorMessage(role === 'student' ? 'Please enter your registered student ID or email.' : 'Please enter your owner email.');
+      return;
+    }
+    if (role === 'student' && !password) {
+      setErrorMessage('Please enter your account password.');
       return;
     }
 
@@ -72,15 +95,21 @@ export const LoginPage: React.FC = () => {
       const success = login(role, identifier, password);
       setIsLoading(false);
       if (!success) {
-        setErrorMessage('Invalid credentials. Please verify your details or use demo quick-login.');
+        // Check if unconfirmed
+        const candidate = students.find((s) => s.email.toLowerCase() === identifier.trim().toLowerCase());
+        if (candidate && candidate.emailConfirmed === false) {
+          setConfirmEmail(candidate.email);
+          setShowConfirmModal(true);
+          setErrorMessage('Email confirmation required before sign in. Verification code dispatched.');
+        } else {
+          setErrorMessage(
+            role === 'student'
+              ? 'Invalid student credentials. Candidate not found or password incorrect. Please register first.'
+              : 'Invalid owner credentials.'
+          );
+        }
       }
     }, 400);
-  };
-
-  const handleQuickStudentLogin = (studEmail: string) => {
-    setIdentifier(studEmail);
-    setPassword('••••••••••••');
-    login('student', studEmail);
   };
 
   const handleQuickOwnerLogin = () => {
@@ -102,37 +131,46 @@ export const LoginPage: React.FC = () => {
       showToast('Please accept terms and conditions', 'warning');
       return;
     }
+    if (!regForm.password || regForm.password.length < 6) {
+      showToast('Password must be at least 6 characters long', 'warning');
+      return;
+    }
     if (regForm.password !== regForm.confirmPassword) {
       showToast('Passwords do not match', 'error');
       return;
     }
 
-    const shortName = regForm.fullName
-      .split(' ')
-      .map((w, idx, arr) => (idx === arr.length - 1 ? w : w[0]))
-      .join(' ');
-
-    addNewStudent({
+    const res = registerCandidate({
       fullName: regForm.fullName,
-      shortName,
-      studentNumber: regForm.studentNumber || String(Math.floor(222000000 + Math.random() * 99999)),
-      idNumber: '031110 5000 080',
+      studentNumber: regForm.studentNumber,
       email: regForm.email,
       phone: regForm.phone || '+27 67 000 0000',
-      institution: 'Central University Of Technology',
-      course: 'Diploma in Information Technology',
-      assignedRoomId: 'room-01',
-      agreementStatus: 'Active',
-      emergencyContact: {
-        name: 'Parent / Guardian',
-        phone: '+27 82 555 9012',
-      },
-      avatarColor: 'bg-emerald-600',
-      initials: shortName.slice(0, 2).toUpperCase(),
+      password: regForm.password,
     });
 
-    setShowRegisterModal(false);
-    login('student', regForm.email);
+    if (res.success) {
+      setConfirmEmail(regForm.email);
+      setConfirmCodeInput('');
+      setShowRegisterModal(false);
+      setShowConfirmModal(true);
+    }
+  };
+
+  const handleConfirmVerification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!confirmCodeInput.trim()) {
+      showToast('Please enter the 6-digit confirmation code', 'warning');
+      return;
+    }
+
+    setIsConfirming(true);
+    setTimeout(() => {
+      const res = verifyEmailConfirmation(confirmEmail, confirmCodeInput.trim());
+      setIsConfirming(false);
+      if (res.success) {
+        setShowConfirmModal(false);
+      }
+    }, 400);
   };
 
   return (
@@ -297,70 +335,56 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Demo Logins Box */}
+          {/* Quick Logins / Candidate Security Notice */}
           <div className="mt-6 pt-5 border-t border-slate-800/80">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2.5">
-              1-Click Demo Resident Credentials:
-            </span>
-
             {role === 'student' ? (
-              <div className="flex flex-col gap-1.5 text-xs">
-                {students.map((stud) => (
+              <div className="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Authenticated Candidate Access Only</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Demo auto-fill is disabled for the student resident portal. Only registered candidates can log in using their own credentials and verified email address.
+                </p>
+                <div className="pt-1 flex items-center justify-between text-[11px] border-t border-slate-900">
+                  <span className="text-slate-500">Need an account?</span>
                   <button
-                    key={stud.id}
                     type="button"
-                    onClick={() => handleQuickStudentLogin(stud.email)}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-950/60 hover:bg-emerald-950/30 border border-slate-800 hover:border-emerald-700/60 transition text-left group"
+                    onClick={() => setShowRegisterModal(true)}
+                    className="text-emerald-400 font-bold hover:underline"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`w-6 h-6 rounded-md ${stud.avatarColor} text-white font-bold text-[10px] flex items-center justify-center`}
-                      >
-                        {stud.initials}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-200 group-hover:text-white flex items-center gap-1.5">
-                          <span>{stud.fullName}</span>
-                          {stud.account?.username && (
-                            <span className="font-mono text-[10px] text-emerald-400">
-                              (@{stud.account.username})
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          ID: {stud.studentNumber} • {stud.email}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-semibold text-emerald-400 opacity-0 group-hover:opacity-100 transition">
-                      Sign In →
-                    </span>
+                    Register as Candidate →
                   </button>
-                ))}
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={handleQuickOwnerLogin}
-                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 hover:bg-emerald-950/30 border border-slate-800 hover:border-emerald-700/60 transition text-left group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white font-bold text-xs flex items-center justify-center">
-                    PC
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-200 group-hover:text-white text-xs">
-                      {ownerProfile.name}
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      {ownerProfile.email} • {ownerProfile.title}
-                    </div>
-                  </div>
-                </div>
-                <span className="text-[11px] font-semibold text-emerald-400">
-                  Enter Portal →
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block mb-2">
+                  Owner Portal Credentials:
                 </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={handleQuickOwnerLogin}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 hover:bg-emerald-950/30 border border-slate-800 hover:border-emerald-700/60 transition text-left group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-800 text-white font-bold text-xs flex items-center justify-center">
+                      PC
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-200 group-hover:text-white text-xs">
+                        {ownerProfile.name}
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {ownerProfile.email} • {ownerProfile.title}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-400">
+                    Enter Portal →
+                  </span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -588,8 +612,125 @@ export const LoginPage: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-xs"
                 >
-                  Register & Sign In
+                  Register & Send Email Confirmation
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Email Verification / Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 text-xs text-slate-200 space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-950 text-emerald-400 flex items-center justify-center font-bold">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Email Authentication Required</h3>
+                  <p className="text-[10px] text-slate-400">Confirm your candidate account</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="p-1 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-slate-300 text-xs leading-relaxed">
+              We have dispatched an authentication verification code to activate your student resident credentials at:
+            </p>
+            <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 font-mono text-emerald-400 font-bold text-xs truncate">
+              {confirmEmail || pendingVerificationEmail}
+            </div>
+
+            {/* Simulated University Mailbox Delivery Preview */}
+            <div className="p-3 bg-emerald-950/30 border border-emerald-800/60 rounded-xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-300 flex items-center gap-1.5 text-[11px]">
+                  <Inbox className="w-3.5 h-3.5" />
+                  Simulated Email Delivery Notification
+                </span>
+                <span className="text-[10px] text-emerald-500">Inbox</span>
+              </div>
+              <div className="text-[11px] text-slate-300">
+                <strong>Subject:</strong> ResiManage • Confirm Student Account Authentication
+              </div>
+              <div className="p-2 bg-slate-900/90 rounded-lg border border-emerald-900/60 flex items-center justify-between">
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">
+                    Verification Code:
+                  </span>
+                  <span className="font-mono text-base font-extrabold tracking-widest text-emerald-400">
+                    {lastSentConfirmationCode || '839204'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmCodeInput(lastSentConfirmationCode || '839204');
+                    showToast('Code auto-filled into verification input!', 'info');
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold shadow-xs transition"
+                >
+                  Auto-Fill Code
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmVerification} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-slate-300 mb-1 font-semibold text-[11px]">
+                  Enter 6-Digit Confirmation Code *
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={confirmCodeInput}
+                    onChange={(e) => setConfirmCodeInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="e.g. 839204"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-center font-mono font-bold text-sm tracking-widest text-white focus:outline-none focus:border-emerald-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resendConfirmationEmail(confirmEmail || pendingVerificationEmail);
+                  }}
+                  className="text-emerald-400 hover:underline text-[11px] inline-flex items-center gap-1 font-medium"
+                >
+                  <Send className="w-3 h-3" />
+                  Resend Email
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmModal(false)}
+                    className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-750 text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isConfirming || confirmCodeInput.length < 6}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition"
+                  >
+                    {isConfirming ? 'Verifying...' : 'Authenticate & Sign In'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

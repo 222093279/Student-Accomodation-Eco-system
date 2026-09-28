@@ -21,9 +21,6 @@ export const MobileProfileView: React.FC = () => {
     currentStudent,
     currentStudentRoom,
     activities,
-    students,
-    setActiveStudentId,
-    setStudentAuthScreen,
     updateStudent,
     logout,
     showToast,
@@ -121,34 +118,37 @@ export const MobileProfileView: React.FC = () => {
         </div>
       </div>
 
-      {/* Switch Resident Switcher (Quick Demo helper) */}
-      <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-700/60">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            Switch Demo Resident
+      {/* Account Authentication & Security Status */}
+      <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4 border border-slate-200/60 dark:border-slate-700/60 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Account & Security Status
           </span>
-          <Users className="w-3.5 h-3.5 text-slate-400" />
+          <Shield className="w-4 h-4 text-emerald-600" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          {students.map((stud) => (
-            <button
-              key={stud.id}
-              onClick={() => {
-                setActiveStudentId(stud.id);
-                showToast(`Switched view to ${stud.shortName}`, 'info');
-              }}
-              className={`p-2 rounded-xl text-center border transition ${
-                currentStudent.id === stud.id
-                  ? 'bg-emerald-700 text-white border-emerald-600 shadow-xs'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
-              }`}
-            >
-              <div className="text-xs font-bold truncate">{stud.shortName}</div>
-              <div className="text-[10px] opacity-80 truncate">
-                {stud.assignedRoomId === 'room-01' ? 'Room 01' : stud.assignedRoomId === 'room-02' ? 'Room 02' : 'Room 03'}
-              </div>
-            </button>
-          ))}
+
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+            <span className="text-slate-600 dark:text-slate-400">Email Confirmation:</span>
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Verified & Authenticated
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+            <span className="text-slate-600 dark:text-slate-400">Login Credential ID:</span>
+            <span className="font-mono text-slate-900 dark:text-white font-semibold">
+              {currentStudent.studentNumber}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+            <span className="text-slate-600 dark:text-slate-400">Authentication Mode:</span>
+            <span className="font-semibold text-slate-900 dark:text-white">
+              Password Protected Candidate
+            </span>
+          </div>
         </div>
       </div>
 

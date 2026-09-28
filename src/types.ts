@@ -1,8 +1,11 @@
 export interface StudentAccount {
   username: string;
+  password?: string;
   temporaryPassword?: string;
   accountCreatedDate: string;
-  accountStatus: 'Active' | 'Pending First Login';
+  accountStatus: 'Active' | 'Pending Email Verification' | 'Pending First Login';
+  isEmailVerified?: boolean;
+  verificationCode?: string;
   mustChangePassword?: boolean;
   sendWelcomeNotification?: boolean;
 }
@@ -15,6 +18,9 @@ export interface Student {
   shortName: string;
   initials: string;
   email: string;
+  password?: string;
+  emailConfirmed?: boolean;
+  emailConfirmationCode?: string;
   phone: string;
   institution: string;
   course: string;
@@ -85,6 +91,9 @@ export interface PaymentRecord {
   status: 'Paid' | 'Pending';
   reference: string;
   paymentMethod: string;
+  isSystemGenerated?: boolean;
+  notes?: string;
+  paidTimestamp?: string;
 }
 
 export interface ActivityLog {
