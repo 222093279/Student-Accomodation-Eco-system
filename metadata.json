@@ -1,0 +1,6 @@
+{
+  "name": "ResiManage - Student Accommodation System",
+  "description": "Comprehensive student accommodation management platform featuring the Student Resident Mobile App and the Property Owner Web Portal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
