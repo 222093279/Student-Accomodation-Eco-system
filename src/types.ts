@@ -102,6 +102,16 @@ export interface ActivityLog {
   subtitle: string;
   timeAgo: string;
   type: 'payment' | 'registration' | 'agreement' | 'maintenance' | 'alert';
+  timestamp?: string; // Formatted date & time, e.g. "24 Feb 2026, 12:45"
+  status?: string; // e.g. 'Paid', 'Pending', 'Reported', 'Scheduled', 'In Progress', 'Resolved', 'Cancelled'
+  previousStatus?: string;
+  entityId?: string; // e.g. 'MR-101', 'PAY-2026-084'
+  entityType?: 'maintenance' | 'payment' | 'agreement' | 'student';
+  actor?: string; // e.g. 'Student (RD Mohlomi)', 'Owner (Ms PC Makhele)', 'System Auto-Payment'
+  amount?: number;
+  roomNumber?: string;
+  studentName?: string;
+  priority?: string;
 }
 
 export interface OwnerProfile {
@@ -119,4 +129,52 @@ export interface OwnerProfile {
     rentPayments: boolean;
     maintenanceAlerts: boolean;
   };
+}
+
+export type MaintenanceCategory =
+  | 'Plumbing'
+  | 'Electrical'
+  | 'Carpentry & Furniture'
+  | 'Appliances'
+  | 'WiFi & Internet'
+  | 'Keys & Locks'
+  | 'Cleaning & Pest'
+  | 'Other';
+
+export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Emergency';
+
+export type MaintenanceStatus = 'Reported' | 'Scheduled' | 'In Progress' | 'Resolved' | 'Cancelled';
+
+export interface MaintenanceStatusUpdate {
+  status: MaintenanceStatus;
+  timestamp: string;
+  note?: string;
+  updatedBy: string;
+}
+
+export interface MaintenanceRequest {
+  id: string; // e.g. "MR-101"
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  studentPhone?: string;
+  studentEmail?: string;
+  roomId: string;
+  roomNumber: string;
+  block: string;
+  areaLocation?: string; // e.g. "Ensuite Bathroom", "Study Desk Area"
+  title: string;
+  category: MaintenanceCategory;
+  priority: MaintenancePriority;
+  description: string;
+  status: MaintenanceStatus;
+  createdAt: string;
+  updatedAt: string;
+  preferredAccessTime?: string;
+  assignedTechnician?: string;
+  scheduledDate?: string;
+  ownerNotes?: string;
+  costEstimate?: number;
+  photoAttachment?: string;
+  statusHistory: MaintenanceStatusUpdate[];
 }

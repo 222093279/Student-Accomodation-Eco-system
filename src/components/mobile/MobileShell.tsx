@@ -5,6 +5,7 @@ import {
   CreditCard,
   FileText,
   User,
+  Wrench,
   Wifi,
   Battery,
   Signal,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { MobileRoomsView } from './MobileRoomsView';
 import { MobilePaymentsView } from './MobilePaymentsView';
+import { MobileMaintenanceView } from './MobileMaintenanceView';
 import { MobileAgreementsView } from './MobileAgreementsView';
 import { MobileProfileView } from './MobileProfileView';
 import { MobileAuthViews } from './MobileAuthViews';
@@ -21,12 +23,21 @@ import { MobileAuthViews } from './MobileAuthViews';
 export const MobileShell: React.FC = () => {
   const {
     currentStudent,
+    currentStudentRoom,
     studentAuthScreen,
     mobileFrameEnabled,
     setMobileFrameEnabled,
+    maintenanceRequests,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'rooms' | 'payments' | 'agreements' | 'profile'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'payments' | 'maintenance' | 'agreements' | 'profile'>('rooms');
+
+  // Count active maintenance issues for current student
+  const activeStudentMaintenanceCount = maintenanceRequests.filter(
+    (r) =>
+      (r.studentId === currentStudent?.id || r.roomNumber === currentStudentRoom?.roomNumber) &&
+      (r.status === 'Reported' || r.status === 'Scheduled' || r.status === 'In Progress')
+  ).length;
 
   // Extract greeting name (e.g. Mohlomi, Matlhoane, Moloi)
   const getGreetingName = () => {
@@ -42,15 +53,27 @@ export const MobileShell: React.FC = () => {
 
     switch (activeTab) {
       case 'rooms':
-        return <MobileRoomsView onNavigateToAgreement={() => setActiveTab('agreements')} />;
+        return (
+          <MobileRoomsView
+            onNavigateToAgreement={() => setActiveTab('agreements')}
+            onNavigateToMaintenance={() => setActiveTab('maintenance')}
+          />
+        );
       case 'payments':
         return <MobilePaymentsView />;
+      case 'maintenance':
+        return <MobileMaintenanceView />;
       case 'agreements':
         return <MobileAgreementsView />;
       case 'profile':
         return <MobileProfileView />;
       default:
-        return <MobileRoomsView onNavigateToAgreement={() => setActiveTab('agreements')} />;
+        return (
+          <MobileRoomsView
+            onNavigateToAgreement={() => setActiveTab('agreements')}
+            onNavigateToMaintenance={() => setActiveTab('maintenance')}
+          />
+        );
     }
   };
 
@@ -126,7 +149,7 @@ export const MobileShell: React.FC = () => {
       {/* Bottom Navigation Bar (When authenticated) */}
       {studentAuthScreen === 'app' && (
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800 px-3 py-2 shrink-0 z-20">
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             <button
               onClick={() => setActiveTab('rooms')}
               className={`flex flex-col items-center justify-center py-1 rounded-xl transition ${
@@ -135,8 +158,8 @@ export const MobileShell: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <Home className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Rooms</span>
+              <Home className="w-4 h-4 mb-0.5" />
+              <span className="text-[9px]">Rooms</span>
             </button>
 
             <button
@@ -147,8 +170,23 @@ export const MobileShell: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <CreditCard className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Payments</span>
+              <CreditCard className="w-4 h-4 mb-0.5" />
+              <span className="text-[9px]">Payments</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('maintenance')}
+              className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition ${
+                activeTab === 'maintenance'
+                  ? 'text-emerald-700 dark:text-emerald-400 font-bold'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+              }`}
+            >
+              <Wrench className="w-4 h-4 mb-0.5" />
+              <span className="text-[9px]">Repairs</span>
+              {activeStudentMaintenanceCount > 0 && (
+                <span className="absolute top-0 right-2 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              )}
             </button>
 
             <button
@@ -159,8 +197,8 @@ export const MobileShell: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <FileText className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Agreements</span>
+              <FileText className="w-4 h-4 mb-0.5" />
+              <span className="text-[9px]">Lease</span>
             </button>
 
             <button
@@ -171,8 +209,8 @@ export const MobileShell: React.FC = () => {
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
             >
-              <User className="w-5 h-5 mb-0.5" />
-              <span className="text-[10px]">Profile</span>
+              <User className="w-4 h-4 mb-0.5" />
+              <span className="text-[9px]">Profile</span>
             </button>
           </div>
         </div>

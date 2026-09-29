@@ -16,15 +16,18 @@ import {
   X,
   Menu,
   Shield,
+  Wrench,
 } from 'lucide-react';
 import { OwnerDashboard } from './OwnerDashboard';
 import { OwnerStudents } from './OwnerStudents';
 import { OwnerRooms } from './OwnerRooms';
 import { OwnerAgreements } from './OwnerAgreements';
 import { OwnerPayments } from './OwnerPayments';
+import { OwnerMaintenance } from './OwnerMaintenance';
 import { OwnerReports } from './OwnerReports';
 import { OwnerSettings } from './OwnerSettings';
 import { OwnerHelp } from './OwnerHelp';
+import { OwnerActivityFeed } from './OwnerActivityFeed';
 
 export const OwnerLayout: React.FC = () => {
   const {
@@ -32,17 +35,23 @@ export const OwnerLayout: React.FC = () => {
     setOwnerActiveTab,
     ownerProfile,
     payments,
+    maintenanceRequests,
+    activities,
     logout,
     showToast,
   } = useApp();
 
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
 
   const pendingCount = payments.filter((p) => p.status === 'Pending').length;
+  const activeMaintenanceCount = maintenanceRequests.filter(
+    (r) => r.status === 'Reported' || r.status === 'Scheduled' || r.status === 'In Progress'
+  ).length;
 
   interface NavItem {
-    id: 'dashboard' | 'students' | 'rooms' | 'agreements' | 'payments' | 'reports' | 'settings' | 'help';
+    id: 'dashboard' | 'students' | 'rooms' | 'agreements' | 'payments' | 'maintenance' | 'reports' | 'settings' | 'help';
     label: string;
     icon: any;
     badge?: number | null;
@@ -54,6 +63,7 @@ export const OwnerLayout: React.FC = () => {
     { id: 'rooms', label: 'Rooms', icon: Home },
     { id: 'agreements', label: 'Agreements', icon: FileText },
     { id: 'payments', label: 'Payments', icon: CreditCard, badge: pendingCount > 0 ? pendingCount : null },
+    { id: 'maintenance', label: 'Maintenance & Tasks', icon: Wrench, badge: activeMaintenanceCount > 0 ? activeMaintenanceCount : null },
     { id: 'reports', label: 'Performance Reports', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'help', label: 'Help', icon: HelpCircle },
@@ -71,6 +81,8 @@ export const OwnerLayout: React.FC = () => {
         return <OwnerAgreements />;
       case 'payments':
         return <OwnerPayments />;
+      case 'maintenance':
+        return <OwnerMaintenance />;
       case 'reports':
         return <OwnerReports />;
       case 'settings':
@@ -195,15 +207,13 @@ export const OwnerLayout: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {
-                setOwnerActiveTab('payments');
-                showToast(`You have ${pendingCount} pending payment invoices`, 'info');
-              }}
-              className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={() => setIsActivityDrawerOpen(!isActivityDrawerOpen)}
+              className="relative p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              title="Recent Activity & Notifications"
             >
               <Bell className="w-4 h-4" />
-              {pendingCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500" />
+              {activities.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               )}
             </button>
           </div>
@@ -214,6 +224,45 @@ export const OwnerLayout: React.FC = () => {
           <div className="max-w-6xl mx-auto">{renderActiveView()}</div>
         </main>
       </div>
+
+      {/* Real-Time Activity Feed Drawer */}
+      {isActivityDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            onClick={() => setIsActivityDrawerOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-md bg-white dark:bg-slate-900 h-full shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col p-4 animate-in slide-in-from-right duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  <Bell className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Real-Time Activity Feed
+                  </h3>
+                  <p className="text-[10px] text-slate-500">Live notifications for rent & maintenance</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsActivityDrawerOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-0.5">
+              <OwnerActivityFeed
+                onNavigate={setOwnerActiveTab}
+                onClose={() => setIsActivityDrawerOpen(false)}
+                showFilters={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Logout Confirmation Modal */}
       {isLogoutModalOpen && (

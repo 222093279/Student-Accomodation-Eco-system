@@ -13,13 +13,15 @@ import {
   CheckCircle2,
   X,
   Sparkles,
+  Wrench,
 } from 'lucide-react';
 
 interface Props {
   onNavigateToAgreement: () => void;
+  onNavigateToMaintenance?: () => void;
 }
 
-export const MobileRoomsView: React.FC<Props> = ({ onNavigateToAgreement }) => {
+export const MobileRoomsView: React.FC<Props> = ({ onNavigateToAgreement, onNavigateToMaintenance }) => {
   const { rooms, currentStudent, currentStudentRoom, currentStudentAgreement } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
@@ -109,16 +111,25 @@ export const MobileRoomsView: React.FC<Props> = ({ onNavigateToAgreement }) => {
           <div className="mt-3.5 flex items-center justify-between gap-2">
             <button
               onClick={onNavigateToAgreement}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-white text-emerald-950 font-semibold text-xs shadow-xs hover:bg-emerald-50 transition active:scale-[0.98]"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-white text-emerald-950 font-semibold text-xs shadow-xs hover:bg-emerald-50 transition active:scale-[0.98]"
             >
               <FileText className="w-3.5 h-3.5 text-emerald-800" />
-              View Agreement
+              Agreement
             </button>
+            {onNavigateToMaintenance && (
+              <button
+                onClick={onNavigateToMaintenance}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-700/80 text-white font-semibold text-xs hover:bg-emerald-700 transition active:scale-[0.98] border border-emerald-600/40"
+              >
+                <Wrench className="w-3.5 h-3.5 text-amber-300" />
+                Report Issue
+              </button>
+            )}
             <button
               onClick={() => setSelectedRoom(currentStudentRoom)}
-              className="inline-flex items-center justify-center gap-1 py-2 px-3 rounded-xl bg-emerald-700/60 text-emerald-100 font-medium text-xs hover:bg-emerald-700 transition"
+              className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl bg-emerald-900/60 text-emerald-100 font-medium text-xs hover:bg-emerald-900 transition"
             >
-              Room Details
+              Details
             </button>
           </div>
         </div>

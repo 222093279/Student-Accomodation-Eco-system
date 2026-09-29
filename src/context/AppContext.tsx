@@ -6,6 +6,10 @@ import {
   PaymentRecord,
   ActivityLog,
   OwnerProfile,
+  MaintenanceRequest,
+  MaintenanceCategory,
+  MaintenancePriority,
+  MaintenanceStatus,
 } from '../types';
 import {
   initialStudents,
@@ -14,6 +18,7 @@ import {
   initialPayments,
   initialActivities,
   initialOwnerProfile,
+  initialMaintenanceRequests,
 } from '../mockData';
 
 interface Toast {
@@ -71,6 +76,7 @@ interface AppContextType {
     | 'rooms'
     | 'agreements'
     | 'payments'
+    | 'maintenance'
     | 'reports'
     | 'settings'
     | 'help';
@@ -83,6 +89,7 @@ interface AppContextType {
   payments: PaymentRecord[];
   activities: ActivityLog[];
   ownerProfile: OwnerProfile;
+  maintenanceRequests: MaintenanceRequest[];
 
   // Actions
   processStudentPayment: (paymentId: string) => void;
@@ -122,6 +129,28 @@ interface AppContextType {
   signAgreement: (agreementId: string) => void;
   updateOwnerProfile: (updates: Partial<OwnerProfile>) => void;
   resetAllData: () => void;
+
+  // Maintenance Actions
+  submitMaintenanceRequest: (data: {
+    studentId: string;
+    roomId?: string;
+    title: string;
+    category: MaintenanceCategory;
+    priority: MaintenancePriority;
+    description: string;
+    areaLocation?: string;
+    preferredAccessTime?: string;
+    photoAttachment?: string;
+  }) => MaintenanceRequest;
+  updateMaintenanceStatus: (
+    requestId: string,
+    status: MaintenanceStatus,
+    note?: string,
+    assignedTechnician?: string,
+    costEstimate?: number,
+    scheduledDate?: string
+  ) => void;
+  deleteMaintenanceRequest: (requestId: string) => void;
 
   // Toasts
   toasts: Toast[];
@@ -212,6 +241,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : initialOwnerProfile;
   });
 
+  const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY_PREFIX + 'maintenanceRequests');
+    return saved ? JSON.parse(saved) : initialMaintenanceRequests;
+  });
+
   // Save to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_PREFIX + 'students', JSON.stringify(students));
@@ -236,6 +270,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_PREFIX + 'ownerProfile', JSON.stringify(ownerProfile));
   }, [ownerProfile]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'maintenanceRequests', JSON.stringify(maintenanceRequests));
+  }, [maintenanceRequests]);
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -349,10 +387,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newActivity: ActivityLog = {
       id: 'act-' + Date.now(),
-      title: 'Payment received from student',
-      subtitle: `R${data.amount.toLocaleString('en-ZA')} received for ${data.transactionPeriod} from ${student?.fullName} (${student?.studentNumber}) via ${data.paymentMethod}. Landlord portal updated automatically.`,
+      title: 'Rent payment received from resident',
+      subtitle: `R${data.amount.toLocaleString('en-ZA')} for ${data.transactionPeriod} from ${student?.fullName} (${room?.roomNumber}) via ${data.paymentMethod}. Ledger auto-updated.`,
       timeAgo: 'Just now',
+      timestamp: timestampFormatted,
       type: 'payment',
+      status: 'Paid',
+      previousStatus: 'Pending',
+      entityId: resolvedRecord.id,
+      entityType: 'payment',
+      amount: data.amount,
+      studentName: student?.fullName,
+      roomNumber: room?.roomNumber,
+      actor: student?.fullName || 'Resident Student',
     };
     setActivities((prev) => [newActivity, ...prev]);
 
@@ -404,12 +451,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments((prev) => [newRecord, ...prev]);
 
     const student = students.find((s) => s.id === data.studentId);
+    const room = rooms.find((r) => r.id === data.roomId);
     const newActivity: ActivityLog = {
       id: 'act-' + Date.now(),
-      title: 'Monthly rental payment recorded',
-      subtitle: `R${data.amount.toLocaleString('en-ZA')} received for ${student?.shortName || 'Tenant'} (${data.transactionPeriod})`,
+      title: 'Manual rent payment recorded',
+      subtitle: `R${data.amount.toLocaleString('en-ZA')} recorded for ${student?.fullName || 'Tenant'} (${room?.roomNumber || 'Room'}) - ${data.transactionPeriod}.`,
       timeAgo: 'Just now',
+      timestamp: 'Today, 24 Feb 2026',
       type: 'payment',
+      status: 'Paid',
+      previousStatus: 'Pending',
+      entityId: newRecord.id,
+      entityType: 'payment',
+      amount: data.amount,
+      studentName: student?.fullName,
+      roomNumber: room?.roomNumber,
+      actor: 'Owner (Ms PC Makhele)',
     };
     setActivities((prev) => [newActivity, ...prev]);
     showToast(`Payment of R${data.amount.toLocaleString('en-ZA')} recorded successfully.`, 'success');
@@ -430,6 +487,158 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setActivities((prev) => [newActivity, ...prev]);
     showToast(`Warning sent to ${student?.shortName} for ${payment.transactionPeriod} (R${payment.amount})`, 'warning');
+  };
+
+  // Maintenance Request Actions
+  const submitMaintenanceRequest = (data: {
+    studentId: string;
+    roomId?: string;
+    title: string;
+    category: MaintenanceCategory;
+    priority: MaintenancePriority;
+    description: string;
+    areaLocation?: string;
+    preferredAccessTime?: string;
+    photoAttachment?: string;
+  }): MaintenanceRequest => {
+    const student = students.find((s) => s.id === data.studentId) || currentStudent;
+    const room = rooms.find((r) => r.id === (data.roomId || student?.assignedRoomId)) || rooms[0];
+    const now = new Date();
+    const formattedDate = `${now.getDate()} ${now.toLocaleString('en-US', { month: 'short' })} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const newId = `MR-${Math.floor(100 + Math.random() * 900)}`;
+
+    const newReq: MaintenanceRequest = {
+      id: newId,
+      studentId: student?.id || 'stud-unknown',
+      studentName: student?.fullName || 'Resident Student',
+      studentNumber: student?.studentNumber || '',
+      studentPhone: student?.phone || '',
+      studentEmail: student?.email || '',
+      roomId: room?.id || 'room-01',
+      roomNumber: room?.roomNumber || 'Room 01',
+      block: room?.block || 'Block A',
+      areaLocation: data.areaLocation || 'Room Interior',
+      title: data.title,
+      category: data.category,
+      priority: data.priority,
+      description: data.description,
+      status: 'Reported',
+      createdAt: formattedDate,
+      updatedAt: formattedDate,
+      preferredAccessTime: data.preferredAccessTime,
+      photoAttachment: data.photoAttachment,
+      statusHistory: [
+        {
+          status: 'Reported',
+          timestamp: formattedDate,
+          note: 'Maintenance issue submitted by student resident',
+          updatedBy: student?.fullName || 'Student Resident',
+        },
+      ],
+    };
+
+    setMaintenanceRequests((prev) => [newReq, ...prev]);
+
+    const newActivity: ActivityLog = {
+      id: 'act-' + Date.now(),
+      title: `Maintenance request reported: ${data.category}`,
+      subtitle: `${newReq.title} • ${newReq.roomNumber} (${newReq.block}) reported by ${student?.fullName}. Priority: ${newReq.priority}.`,
+      timeAgo: 'Just now',
+      timestamp: formattedDate,
+      type: 'maintenance',
+      status: 'Reported',
+      entityId: newId,
+      entityType: 'maintenance',
+      studentName: student?.fullName,
+      roomNumber: newReq.roomNumber,
+      priority: data.priority,
+      actor: student?.fullName || 'Resident Student',
+    };
+    setActivities((prev) => [newActivity, ...prev]);
+
+    showToast(`Maintenance issue "${data.title}" reported successfully (#${newId}).`, 'success');
+    return newReq;
+  };
+
+  const updateMaintenanceStatus = (
+    requestId: string,
+    newStatus: MaintenanceStatus,
+    note?: string,
+    assignedTechnician?: string,
+    costEstimate?: number,
+    scheduledDate?: string
+  ) => {
+    const now = new Date();
+    const formattedDate = `${now.getDate()} ${now.toLocaleString('en-US', { month: 'short' })} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    let updatedTitle = '';
+    let targetRoomNumber = '';
+    let targetStudentName = '';
+    let prevStatus = 'Reported';
+    let targetPriority = '';
+
+    setMaintenanceRequests((prev) =>
+      prev.map((req) => {
+        if (req.id !== requestId) return req;
+        updatedTitle = req.title;
+        targetRoomNumber = req.roomNumber;
+        targetStudentName = req.studentName;
+        prevStatus = req.status;
+        targetPriority = req.priority;
+
+        const newHistory = [
+          ...req.statusHistory,
+          {
+            status: newStatus,
+            timestamp: formattedDate,
+            note: note || `Status transitioned to ${newStatus}`,
+            updatedBy: 'Property Owner (Ms PC Makhele)',
+          },
+        ];
+
+        return {
+          ...req,
+          status: newStatus,
+          updatedAt: formattedDate,
+          ownerNotes: note !== undefined ? note : req.ownerNotes,
+          assignedTechnician: assignedTechnician !== undefined ? assignedTechnician : req.assignedTechnician,
+          costEstimate: costEstimate !== undefined ? costEstimate : req.costEstimate,
+          scheduledDate: scheduledDate !== undefined ? scheduledDate : req.scheduledDate,
+          statusHistory: newHistory,
+        };
+      })
+    );
+
+    let actionLabel = `Maintenance status changed to ${newStatus}`;
+    if (newStatus === 'Scheduled') actionLabel = `Maintenance task scheduled with contractor`;
+    else if (newStatus === 'In Progress') actionLabel = `Maintenance repair underway (In Progress)`;
+    else if (newStatus === 'Resolved') actionLabel = `Maintenance task resolved & verified`;
+    else if (newStatus === 'Cancelled') actionLabel = `Maintenance request cancelled`;
+
+    const newActivity: ActivityLog = {
+      id: 'act-' + Date.now(),
+      title: actionLabel,
+      subtitle: `${updatedTitle || requestId} (${targetRoomNumber}) transitioned from ${prevStatus} ➔ ${newStatus}.${assignedTechnician ? ` Contractor: ${assignedTechnician.split('(')[0]}` : ''}${note ? ` Note: "${note}"` : ''}`,
+      timeAgo: 'Just now',
+      timestamp: formattedDate,
+      type: 'maintenance',
+      status: newStatus,
+      previousStatus: prevStatus,
+      entityId: requestId,
+      entityType: 'maintenance',
+      studentName: targetStudentName,
+      roomNumber: targetRoomNumber,
+      priority: targetPriority,
+      actor: 'Owner / Landlord (Ms PC Makhele)',
+    };
+    setActivities((prev) => [newActivity, ...prev]);
+
+    showToast(`Maintenance ticket #${requestId} status updated to ${newStatus}.`, 'success');
+  };
+
+  const deleteMaintenanceRequest = (requestId: string) => {
+    setMaintenanceRequests((prev) => prev.filter((r) => r.id !== requestId));
+    showToast(`Maintenance request #${requestId} removed.`, 'info');
   };
 
   // Add new student
@@ -883,6 +1092,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(STORAGE_KEY_PREFIX + 'activities');
     localStorage.removeItem(STORAGE_KEY_PREFIX + 'ownerProfile');
     localStorage.removeItem(STORAGE_KEY_PREFIX + 'auth_session');
+    localStorage.removeItem(STORAGE_KEY_PREFIX + 'maintenanceRequests');
 
     setCurrentUser(null);
     setStudents(initialStudents);
@@ -891,6 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments(initialPayments);
     setActivities(initialActivities);
     setOwnerProfile(initialOwnerProfile);
+    setMaintenanceRequests(initialMaintenanceRequests);
     setActiveStudentId('stud-1');
     setStudentAuthScreen('login');
     showToast('System reset to clean unauthenticated demo state.', 'info');
@@ -932,7 +1143,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         payments,
         activities,
         ownerProfile,
+        maintenanceRequests,
         processStudentPayment,
+        makeStudentPaymentToLandlord,
+        lastLandlordPaymentNotice,
+        clearLandlordPaymentNotice,
         recordManualPayment,
         sendWarningNotice,
         addNewStudent,
@@ -943,6 +1158,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         signAgreement,
         updateOwnerProfile,
         resetAllData,
+        submitMaintenanceRequest,
+        updateMaintenanceStatus,
+        deleteMaintenanceRequest,
         toasts,
         showToast,
         dismissToast,

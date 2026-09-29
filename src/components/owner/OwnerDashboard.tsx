@@ -13,7 +13,11 @@ import {
   CheckCircle2,
   Calendar,
   BarChart3,
+  Wrench,
+  Flame,
+  ChevronRight,
 } from 'lucide-react';
+import { OwnerActivityFeed } from './OwnerActivityFeed';
 
 interface Props {
   onNavigate: (tab: any) => void;
@@ -26,6 +30,7 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
     agreements,
     payments,
     activities,
+    maintenanceRequests,
     sendWarningNotice,
   } = useApp();
 
@@ -41,6 +46,11 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
     .filter((p) => p.status === 'Paid')
     .reduce((sum, p) => sum + p.amount, 0);
 
+  const activeMaintenance = maintenanceRequests.filter(
+    (r) => r.status === 'Reported' || r.status === 'Scheduled' || r.status === 'In Progress'
+  );
+  const emergencyMaintenance = activeMaintenance.filter((r) => r.priority === 'Emergency');
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -55,21 +65,29 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => onNavigate('maintenance')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-950 text-xs font-semibold shadow-xs hover:bg-slate-800 transition"
+          >
+            <Wrench className="w-3.5 h-3.5 text-amber-400 dark:text-amber-600" />
+            Maintenance Hub
+            {activeMaintenance.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold">
+                {activeMaintenance.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => onNavigate('reports')}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition"
           >
             <BarChart3 className="w-3.5 h-3.5" />
             Performance Reports
           </button>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
-            <Calendar className="w-3.5 h-3.5" />
-            Today: 24 Feb 2026
-          </span>
         </div>
       </div>
 
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* KPI Cards Row (4 Cards) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         {/* Total Students */}
         <div
           onClick={() => onNavigate('students')}
@@ -98,7 +116,7 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Total Rooms Available
+              Rooms Available
             </span>
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400">
               <Home className="w-4 h-4" />
@@ -130,6 +148,32 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
           </div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Verified & active through 2026
+          </p>
+        </div>
+
+        {/* Active Maintenance Requests */}
+        <div
+          onClick={() => onNavigate('maintenance')}
+          className="bg-white dark:bg-slate-800/90 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-xs hover:border-amber-500/50 cursor-pointer transition"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Maintenance Tasks
+            </span>
+            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600">
+              <Wrench className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 flex items-baseline gap-2">
+            <span>{activeMaintenance.length}</span>
+            {emergencyMaintenance.length > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                {emergencyMaintenance.length} Urgent
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 font-medium">
+            {activeMaintenance.filter((r) => r.status === 'Reported').length} need contractor dispatch
           </p>
         </div>
       </div>
@@ -189,6 +233,70 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Active Maintenance Tasks Section */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600">
+              <Wrench className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                Active Maintenance & Repairs Queue
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                {activeMaintenance.length} issues currently active or reported by residents
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('maintenance')}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 self-start sm:self-center"
+          >
+            <span>Manage All Tasks in Maintenance Hub</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {maintenanceRequests.slice(0, 3).map((item) => (
+            <div
+              key={item.id}
+              onClick={() => onNavigate('maintenance')}
+              className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 hover:border-emerald-500 cursor-pointer transition space-y-2 group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[10px] font-bold text-slate-500">
+                  #{item.id}
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    item.status === 'Resolved'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : item.status === 'In Progress'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                      : item.status === 'Scheduled'
+                      ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                  }`}
+                >
+                  {item.status}
+                </span>
+              </div>
+              <h4 className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                {item.title}
+              </h4>
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <span>
+                  {item.roomNumber} ({item.studentName.split(' ')[0]})
+                </span>
+                <span className="text-[10px] text-slate-400">{item.createdAt.split(',')[0]}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Grid: Revenue Chart & Recent Activities */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Revenue Chart */}
@@ -241,41 +349,9 @@ export const OwnerDashboard: React.FC<Props> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Recent Activities */}
-        <div className="bg-white dark:bg-slate-800/90 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Recent Activities
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Latest student resident events & property logs
-              </p>
-            </div>
-            <Clock className="w-4 h-4 text-slate-400" />
-          </div>
-
-          <div className="space-y-3 overflow-y-auto max-h-56 pr-1 scrollbar-thin">
-            {activities.slice(0, 6).map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-750 transition text-xs border border-transparent hover:border-slate-100 dark:hover:border-slate-700"
-              >
-                <div className="w-2 h-2 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-slate-900 dark:text-white">
-                    {activity.title}
-                  </div>
-                  <div className="text-slate-500 dark:text-slate-400 text-[11px] truncate">
-                    {activity.subtitle}
-                  </div>
-                </div>
-                <span className="text-[10px] text-slate-400 shrink-0 font-medium">
-                  {activity.timeAgo}
-                </span>
-              </div>
-            ))}
-          </div>
+        {/* Real-Time Recent Activities Feed */}
+        <div className="bg-white dark:bg-slate-800/90 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col justify-between">
+          <OwnerActivityFeed onNavigate={onNavigate} maxItems={8} showFilters={true} />
         </div>
       </div>
     </div>
